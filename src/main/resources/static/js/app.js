@@ -1,6 +1,15 @@
 document.getElementById("searchBtn")
     .addEventListener("click", searchMusic);
 
+document.getElementById("keyword")
+    .addEventListener("keydown", function(event) {
+
+        if (event.key === "Enter") {
+            searchMusic();
+        }
+
+    });
+
 async function searchMusic() {
 
     const keyword =
