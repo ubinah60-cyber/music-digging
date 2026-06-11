@@ -34,12 +34,11 @@ function renderMusicList(musicList) {
     musicList.forEach(music => {
 
         resultArea.innerHTML += `
-            <div>
+            <div class="music-card">
                 <h3>${music.title}</h3>
                 <p>가수 : ${music.artist}</p>
                 <p>앨범 : ${music.album}</p>
-                <p>장르 : ${music.genre}</p>
-                <hr>
+                <p>장르 : ${music.genre}</p>              
             </div>
         `;
     });

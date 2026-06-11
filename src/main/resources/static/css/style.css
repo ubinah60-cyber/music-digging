@@ -1,0 +1,29 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 40px;
+}
+
+.search-box {
+    margin-bottom: 20px;
+}
+
+#keyword {
+    width: 300px;
+    padding: 10px;
+}
+
+#searchBtn {
+    padding: 10px 16px;
+    cursor: pointer;
+}
+
+.music-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.music-card h3 {
+    margin-top: 0;
+}
