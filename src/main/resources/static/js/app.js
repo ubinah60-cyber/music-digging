@@ -13,7 +13,15 @@ document.getElementById("keyword")
 async function searchMusic() {
 
     const keyword =
-        document.getElementById("keyword").value;
+        document.getElementById("keyword").value.trim();
+
+    const resultArea =
+        document.getElementById("resultArea");
+
+    if (keyword === "") {
+        resultArea.innerHTML = "<p>검색어를 입력해주세요.</p>";
+        return;
+    }
 
     const response =
         await fetch(`/api/music/search?keyword=${keyword}`);
@@ -30,6 +38,11 @@ function renderMusicList(musicList) {
         document.getElementById("resultArea");
 
     resultArea.innerHTML = "";
+
+    if (musicList.length === 0) {
+        resultArea.innerHTML = "<p>검색 결과가 없습니다.</p>";
+        return;
+    }
 
     musicList.forEach(music => {
 
