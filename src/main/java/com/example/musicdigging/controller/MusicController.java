@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.example.musicdigging.dto.ArtistDto;
+import com.example.musicdigging.external.music.MusicBrainzService;
 
 import java.util.List;
 
@@ -28,7 +30,7 @@ public class MusicController {
     }
 
     @GetMapping("/api/music/artist")
-    public String artist(@RequestParam String name) {
+    public List<ArtistDto> artist(@RequestParam String name) {
 
         return musicBrainzService.searchArtist(name);
     }
