@@ -38,6 +38,14 @@ async function searchMusic() {
         await artistResponse.json();
 
     renderArtistList(artistList);
+
+    const albumResponse =
+        await fetch(`/api/music/albums?artistName=${keyword}`);
+
+    const albumList =
+        await albumResponse.json();
+
+    renderAlbumList(albumList);
 }
 
 function renderMusicList(musicList) {
@@ -85,6 +93,31 @@ function renderArtistList(artistList) {
                 <h3>${artist.name}</h3>
                 <p>국가 : ${artist.country}</p>
                 <p>유형 : ${artist.type}</p>
+            </div>
+        `;
+    });
+}
+
+function renderAlbumList(albumList) {
+
+    const albumArea =
+        document.getElementById("albumArea");
+
+    albumArea.innerHTML = "";
+
+    if (albumList.length === 0) {
+        albumArea.innerHTML =
+            "<p>앨범 정보가 없습니다.</p>";
+        return;
+    }
+
+    albumList.forEach(album => {
+
+        albumArea.innerHTML += `
+            <div class="music-card">
+                <h3>${album.title}</h3>
+                <p>유형 : ${album.type}</p>
+                <p>발매일 : ${album.firstReleaseDate}</p>
             </div>
         `;
     });

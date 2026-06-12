@@ -1,6 +1,7 @@
 package com.example.musicdigging.controller;
 
 import com.example.musicdigging.domain.Music;
+import com.example.musicdigging.dto.AlbumDto;
 import com.example.musicdigging.external.music.MusicBrainzService;
 import com.example.musicdigging.service.MusicService;
 import lombok.RequiredArgsConstructor;
@@ -8,7 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import com.example.musicdigging.dto.ArtistDto;
-import com.example.musicdigging.external.music.MusicBrainzService;
+
 
 import java.util.List;
 
@@ -33,5 +34,10 @@ public class MusicController {
     public List<ArtistDto> artist(@RequestParam String name) {
 
         return musicBrainzService.searchArtist(name);
+    }
+
+    @GetMapping("/api/music/albums")
+    public List<AlbumDto> albums(@RequestParam String artistName) {
+        return musicBrainzService.searchAlbums(artistName);
     }
 }

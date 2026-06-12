@@ -1,5 +1,6 @@
 package com.example.musicdigging.external.music;
 
+import com.example.musicdigging.dto.AlbumDto;
 import com.example.musicdigging.dto.ArtistDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -51,6 +52,41 @@ public class MusicBrainzService {
 
         } catch (Exception e) {
             throw new RuntimeException("MusicBrainz 응답 파싱 실패", e);
+        }
+    }
+
+    public List<AlbumDto> searchAlbums(String artistName) {
+
+        String url =
+                "https://musicbrainz.org/ws/2/release-group/?query=artist:"
+                        + artistName
+                        + "&fmt=json";
+
+        String json = restClient.get()
+                .uri(url)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode releaseGroups = root.get("release-groups");
+
+            List<AlbumDto> result = new ArrayList<>();
+
+            for (JsonNode releaseGroup : releaseGroups) {
+                AlbumDto dto = new AlbumDto();
+
+                dto.setTitle(releaseGroup.path("title").asText());
+                dto.setType(releaseGroup.path("primary-type").asText(null));
+                dto.setFirstReleaseDate(releaseGroup.path("first-release-date").asText(null));
+
+                result.add(dto);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            throw new RuntimeException("MusicBrainz 앨범 응답 파싱 실패", e);
         }
     }
 }
