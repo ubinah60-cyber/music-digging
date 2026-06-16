@@ -114,11 +114,33 @@ function renderAlbumList(albumList) {
     albumList.forEach(album => {
 
         albumArea.innerHTML += `
-            <div class="music-card">
+            <div class="music-card"
+             onclick="loadAlbumDetail('${album.id}')">
                 <h3>${album.title}</h3>
                 <p>유형 : ${album.type}</p>
                 <p>발매일 : ${album.firstReleaseDate}</p>
             </div>
         `;
     });
+}
+
+async function loadAlbumDetail(albumId) {
+
+    const response =
+        await fetch(`/api/music/album-detail?id=${albumId}`);
+
+    const album =
+        await response.json();
+
+    const albumDetailArea =
+        document.getElementById("albumDetailArea");
+
+    albumDetailArea.innerHTML = `
+        <div class="music-card">
+            <h3>${album.title}</h3>
+            <p>유형 : ${album.type}</p>
+            <p>발매일 : ${album.firstReleaseDate}</p>
+            <p>ID : ${album.id}</p>
+        </div>
+    `;
 }

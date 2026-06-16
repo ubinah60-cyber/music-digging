@@ -40,4 +40,9 @@ public class MusicController {
     public List<AlbumDto> albums(@RequestParam String artistName) {
         return musicBrainzService.searchAlbums(artistName);
     }
+
+    @GetMapping("/api/music/album-detail")
+    public AlbumDto albumDetail(@RequestParam String id) {
+        return musicBrainzService.getAlbumDetail(id);
+    }
 }

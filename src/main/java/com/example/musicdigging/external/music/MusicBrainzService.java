@@ -90,4 +90,33 @@ public class MusicBrainzService {
             throw new RuntimeException("MusicBrainz 앨범 응답 파싱 실패", e);
         }
     }
+
+    public AlbumDto getAlbumDetail(String albumId) {
+
+        String url =
+                "https://musicbrainz.org/ws/2/release-group/"
+                        + albumId
+                        + "?fmt=json";
+
+        String json = restClient.get()
+                .uri(url)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+
+            AlbumDto dto = new AlbumDto();
+
+            dto.setId(root.path("id").asText());
+            dto.setTitle(root.path("title").asText());
+            dto.setType(root.path("primary-type").asText(null));
+            dto.setFirstReleaseDate(root.path("first-release-date").asText(null));
+
+            return dto;
+
+        } catch (Exception e) {
+            throw new RuntimeException("MusicBrainz 앨범 상세 응답 파싱 실패", e);
+        }
+    }
 }
