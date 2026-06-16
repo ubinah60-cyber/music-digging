@@ -10,6 +10,9 @@ document.getElementById("keyword")
 
     });
 
+document.getElementById("modalCloseBtn")
+    .addEventListener("click", closeAlbumModal);
+
 async function searchMusic() {
 
     const keyword =
@@ -151,6 +154,8 @@ async function loadAlbumDetail(albumId) {
         await trackResponse.json();
 
     renderTrackList(tracks);
+
+    openAlbumModal();
 }
 
 function renderTrackList(tracks) {
@@ -173,5 +178,15 @@ function renderTrackList(tracks) {
             </div>
         `;
     });
+}
+
+function openAlbumModal() {
+    document.getElementById("albumModal")
+        .classList.remove("hidden");
+}
+
+function closeAlbumModal() {
+    document.getElementById("albumModal")
+        .classList.add("hidden");
 }
 
