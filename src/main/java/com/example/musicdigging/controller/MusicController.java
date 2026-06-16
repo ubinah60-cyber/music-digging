@@ -2,6 +2,7 @@ package com.example.musicdigging.controller;
 
 import com.example.musicdigging.domain.Music;
 import com.example.musicdigging.dto.AlbumDto;
+import com.example.musicdigging.dto.TrackDto;
 import com.example.musicdigging.external.music.MusicBrainzService;
 import com.example.musicdigging.service.MusicService;
 import lombok.RequiredArgsConstructor;
@@ -44,5 +45,10 @@ public class MusicController {
     @GetMapping("/api/music/album-detail")
     public AlbumDto albumDetail(@RequestParam String id) {
         return musicBrainzService.getAlbumDetail(id);
+    }
+
+    @GetMapping("/api/music/tracks")
+    public List<TrackDto> tracks(@RequestParam String releaseId) {
+        return musicBrainzService.getTracks(releaseId);
     }
 }

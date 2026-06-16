@@ -2,6 +2,7 @@ package com.example.musicdigging.external.music;
 
 import com.example.musicdigging.dto.AlbumDto;
 import com.example.musicdigging.dto.ArtistDto;
+import com.example.musicdigging.dto.TrackDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -96,7 +97,7 @@ public class MusicBrainzService {
         String url =
                 "https://musicbrainz.org/ws/2/release-group/"
                         + albumId
-                        + "?fmt=json";
+                        + "?inc=releases&fmt=json";
 
         String json = restClient.get()
                 .uri(url)
@@ -113,10 +114,59 @@ public class MusicBrainzService {
             dto.setType(root.path("primary-type").asText(null));
             dto.setFirstReleaseDate(root.path("first-release-date").asText(null));
 
+            JsonNode releases = root.path("releases");
+
+            if (releases.isArray() && releases.size() > 0) {
+                dto.setReleaseId(
+                        releases.get(0)
+                                .path("id")
+                                .asText(null)
+                );
+            }
+
             return dto;
 
         } catch (Exception e) {
             throw new RuntimeException("MusicBrainz 앨범 상세 응답 파싱 실패", e);
+        }
+    }
+
+    public List<TrackDto> getTracks(String releaseId) {
+
+        String url =
+                "https://musicbrainz.org/ws/2/release/"
+                        + releaseId
+                        + "?inc=recordings&fmt=json";
+
+        String json = restClient.get()
+                .uri(url)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode media = root.path("media");
+
+            List<TrackDto> result = new ArrayList<>();
+
+            for (JsonNode medium : media) {
+                JsonNode tracks = medium.path("tracks");
+
+                for (JsonNode track : tracks) {
+                    TrackDto dto = new TrackDto();
+
+                    dto.setTrackNumber(track.path("number").asInt());
+                    dto.setTitle(track.path("title").asText(null));
+                    dto.setLength(track.path("length").asInt());
+
+                    result.add(dto);
+                }
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            throw new RuntimeException("MusicBrainz 트랙 응답 파싱 실패", e);
         }
     }
 }

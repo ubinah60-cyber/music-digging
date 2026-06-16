@@ -9,4 +9,5 @@ public class AlbumDto {
     private String type;
     private String firstReleaseDate;
     private String id;
+    private String releaseId;
 }
