@@ -143,4 +143,35 @@ async function loadAlbumDetail(albumId) {
             <p>ID : ${album.id}</p>
         </div>
     `;
+
+    const trackResponse =
+        await fetch(`/api/music/tracks?releaseId=${album.releaseId}`);
+
+    const tracks =
+        await trackResponse.json();
+
+    renderTrackList(tracks);
 }
+
+function renderTrackList(tracks) {
+
+    const trackArea =
+        document.getElementById("trackArea");
+
+    trackArea.innerHTML = "";
+
+    if (tracks.length === 0) {
+        trackArea.innerHTML = "<p>트랙 정보가 없습니다.</p>";
+        return;
+    }
+
+    tracks.forEach(track => {
+        trackArea.innerHTML += `
+            <div class="music-card">
+                <p>${track.trackNumber}. ${track.title}</p>
+                <p>재생시간 : ${track.length}</p>
+            </div>
+        `;
+    });
+}
+

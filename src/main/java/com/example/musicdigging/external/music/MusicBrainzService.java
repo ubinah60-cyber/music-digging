@@ -157,7 +157,16 @@ public class MusicBrainzService {
 
                     dto.setTrackNumber(track.path("number").asInt());
                     dto.setTitle(track.path("title").asText(null));
-                    dto.setLength(track.path("length").asInt());
+
+                    long length = track.path("length").asLong();
+
+                    long seconds = length / 1000;
+                    long minutes = seconds / 60;
+                    long remainSeconds = seconds % 60;
+
+                    dto.setLength(
+                            String.format("%d:%02d", minutes, remainSeconds)
+                    );
 
                     result.add(dto);
                 }

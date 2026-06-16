@@ -9,5 +9,5 @@ public class TrackDto {
 
     private String title;
 
-    private Integer length;
+    private String length;
 }
