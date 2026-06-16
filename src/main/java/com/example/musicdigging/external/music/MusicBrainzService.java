@@ -79,6 +79,7 @@ public class MusicBrainzService {
                 dto.setTitle(releaseGroup.path("title").asText());
                 dto.setType(releaseGroup.path("primary-type").asText(null));
                 dto.setFirstReleaseDate(releaseGroup.path("first-release-date").asText(null));
+                dto.setId(releaseGroup.path("id").asText());
 
                 result.add(dto);
             }
