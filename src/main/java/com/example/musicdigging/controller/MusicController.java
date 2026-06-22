@@ -2,6 +2,7 @@ package com.example.musicdigging.controller;
 
 import com.example.musicdigging.domain.Music;
 import com.example.musicdigging.dto.AlbumDto;
+import com.example.musicdigging.dto.CreditDto;
 import com.example.musicdigging.dto.TrackDto;
 import com.example.musicdigging.external.music.MusicBrainzService;
 import com.example.musicdigging.service.MusicService;
@@ -50,5 +51,13 @@ public class MusicController {
     @GetMapping("/api/music/tracks")
     public List<TrackDto> tracks(@RequestParam String releaseId) {
         return musicBrainzService.getTracks(releaseId);
+    }
+
+    @GetMapping("/api/music/track-credit")
+    public List<CreditDto> getTrackCredit(
+            @RequestParam String recordingId
+    ) {
+        return musicBrainzService
+                .getTrackCredits(recordingId);
     }
 }

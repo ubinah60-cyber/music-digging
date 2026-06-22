@@ -215,9 +215,43 @@ function renderTrackList(tracks) {
 
     tracks.forEach(track => {
         trackArea.innerHTML += `
-            <div class="music-card">
+            <div class="music-card track-card"
+                 onclick="loadTrackCredit('${track.recordingId}')">
                 <p>${track.trackNumber}. ${track.title}</p>
                 <p>재생시간 : ${track.length}</p>
+            </div>
+        `;
+    });
+}
+
+async function loadTrackCredit(recordingId) {
+
+    const response =
+        await fetch(`/api/music/track-credit?recordingId=${recordingId}`);
+
+    const credits =
+        await response.json();
+
+    renderCredits(credits);
+}
+
+function renderCredits(credits) {
+
+    const creditArea =
+        document.getElementById("creditArea");
+
+    creditArea.innerHTML = "";
+
+    if (credits.length === 0) {
+        creditArea.innerHTML = "<p>크레딧 정보가 없습니다.</p>";
+        return;
+    }
+
+    credits.forEach(credit => {
+        creditArea.innerHTML += `
+            <div class="music-card credit-card"
+                 onclick="searchByArtistName('${credit.name}')">
+                <p>${credit.role} : ${credit.name}</p>
             </div>
         `;
     });

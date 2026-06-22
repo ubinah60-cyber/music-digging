@@ -10,4 +10,6 @@ public class TrackDto {
     private String title;
 
     private String length;
+
+    private String recordingId;
 }

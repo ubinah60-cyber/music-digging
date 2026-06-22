@@ -68,3 +68,19 @@ body {
 .similar-artist-card:hover {
     background-color: #f1f1f1;
 }
+
+.track-card {
+    cursor: pointer;
+}
+
+.track-card:hover {
+    background-color: #f1f1f1;
+}
+
+.credit-card {
+    cursor: pointer;
+}
+
+.credit-card:hover {
+    background-color: #f1f1f1;
+}

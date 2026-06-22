@@ -2,6 +2,7 @@ package com.example.musicdigging.external.music;
 
 import com.example.musicdigging.dto.AlbumDto;
 import com.example.musicdigging.dto.ArtistDto;
+import com.example.musicdigging.dto.CreditDto;
 import com.example.musicdigging.dto.TrackDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -82,6 +83,7 @@ public class MusicBrainzService {
                 dto.setFirstReleaseDate(releaseGroup.path("first-release-date").asText(null));
                 dto.setId(releaseGroup.path("id").asText());
 
+
                 result.add(dto);
             }
 
@@ -157,6 +159,7 @@ public class MusicBrainzService {
 
                     dto.setTrackNumber(track.path("number").asInt());
                     dto.setTitle(track.path("title").asText(null));
+                    dto.setRecordingId(track.path("recording").path("id").asText(null));
 
                     long length = track.path("length").asLong();
 
@@ -176,6 +179,107 @@ public class MusicBrainzService {
 
         } catch (Exception e) {
             throw new RuntimeException("MusicBrainz 트랙 응답 파싱 실패", e);
+        }
+    }
+
+    private List<CreditDto> getCreditsFromWork(String workId) {
+
+        String url =
+                "https://musicbrainz.org/ws/2/work/"
+                        + workId
+                        + "?inc=artist-rels&fmt=json";
+
+        String json =
+                restClient.get()
+                        .uri(url)
+                        .retrieve()
+                        .body(String.class);
+
+        try {
+            JsonNode root =
+                    objectMapper.readTree(json);
+
+            JsonNode relations =
+                    root.path("relations");
+
+            List<CreditDto> result =
+                    new ArrayList<>();
+
+            for (JsonNode relation : relations) {
+
+                String type =
+                        relation.path("type").asText();
+
+                if (!type.equals("composer")
+                        && !type.equals("lyricist")) {
+                    continue;
+                }
+
+                CreditDto dto =
+                        new CreditDto();
+
+                dto.setRole(type.toUpperCase());
+                dto.setName(
+                        relation.path("artist")
+                                .path("name")
+                                .asText(null)
+                );
+
+                result.add(dto);
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<CreditDto> getTrackCredits(String recordingId) {
+
+        String url =
+                "https://musicbrainz.org/ws/2/recording/"
+                        + recordingId
+                        + "?inc=work-rels&fmt=json";
+
+        String json =
+                restClient.get()
+                        .uri(url)
+                        .retrieve()
+                        .body(String.class);
+
+        try {
+            JsonNode root =
+                    objectMapper.readTree(json);
+
+            JsonNode relations =
+                    root.path("relations");
+
+            for (JsonNode relation : relations) {
+
+                String targetType =
+                        relation.path("target-type").asText();
+
+                if (!targetType.equals("work")) {
+                    continue;
+                }
+
+                String workId =
+                        relation.path("work")
+                                .path("id")
+                                .asText(null);
+
+                if (workId == null) {
+                    return new ArrayList<>();
+                }
+
+                return getCreditsFromWork(workId);
+            }
+
+            return new ArrayList<>();
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }
