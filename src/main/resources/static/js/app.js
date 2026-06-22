@@ -111,28 +111,37 @@ function renderArtistList(artistList) {
 
 function renderSimilarArtists(similarArtists) {
 
-    const area =
+    const similarArtistArea =
         document.getElementById("similarArtistArea");
 
-    area.innerHTML = "";
+    similarArtistArea.innerHTML = "";
 
     if (similarArtists.length === 0) {
-
-        area.innerHTML =
-            "<p>추천 아티스트가 없습니다.</p>";
-
+        similarArtistArea.innerHTML =
+            "<p>비슷한 아티스트가 없습니다.</p>";
         return;
     }
 
     similarArtists.slice(0, 10).forEach(artist => {
 
-        area.innerHTML += `
-            <div class="music-card">
+        similarArtistArea.innerHTML += `
+            <div class="music-card similar-artist-card"
+                 onclick="searchByArtistName('${artist.name}')">
                 <h3>${artist.name}</h3>
                 <p>유사도 : ${artist.match}</p>
             </div>
         `;
     });
+}
+
+function searchByArtistName(artistName) {
+
+    const keywordInput =
+        document.getElementById("keyword");
+
+    keywordInput.value = artistName;
+
+    searchMusic();
 }
 
 function renderAlbumList(albumList) {
