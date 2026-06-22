@@ -19,3 +19,7 @@ mybatis:
   type-aliases-package: com.example.musicdigging.domain
   configuration:
     map-underscore-to-camel-case: true
+
+lastfm:
+  api-key: ${LASTFM_API_KEY}
+  api-url: https://ws.audioscrobbler.com/2.0/
