@@ -1,15 +1,14 @@
 package com.example.musicdigging.external.music;
 
-import com.example.musicdigging.dto.AlbumDto;
-import com.example.musicdigging.dto.ArtistDto;
-import com.example.musicdigging.dto.CreditDto;
-import com.example.musicdigging.dto.TrackDto;
+import com.example.musicdigging.dto.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -280,6 +279,59 @@ public class MusicBrainzService {
 
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public List<RecommendationDto> getRecommendationsByCredit(String name) {
+
+        String encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8);
+
+        String url =
+                "https://musicbrainz.org/ws/2/recording/?query=creditname:"
+                        + encodedName
+                        + "&limit=10&fmt=json";
+
+        String json = restClient.get()
+                .uri(url)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = objectMapper.readTree(json);
+            JsonNode recordings = root.path("recordings");
+
+            List<RecommendationDto> result = new ArrayList<>();
+
+            for (JsonNode recording : recordings) {
+
+                String title = recording.path("title").asText(null);
+
+                String artistName = null;
+                JsonNode artistCredits = recording.path("artist-credit");
+
+                if (artistCredits.isArray() && artistCredits.size() > 0) {
+                    artistName = artistCredits.get(0)
+                            .path("artist")
+                            .path("name")
+                            .asText(null);
+                }
+
+                if (title != null) {
+                    RecommendationDto dto =
+                            new RecommendationDto(
+                                    title,
+                                    artistName,
+                                    name + " 참여곡"
+                            );
+
+                    result.add(dto);
+                }
+            }
+
+            return result;
+
+        } catch (Exception e) {
+            throw new RuntimeException("동일 크레딧 추천곡 응답 파싱 실패", e);
         }
     }
 }

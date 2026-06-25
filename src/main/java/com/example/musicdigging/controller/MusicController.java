@@ -1,16 +1,13 @@
 package com.example.musicdigging.controller;
 
 import com.example.musicdigging.domain.Music;
-import com.example.musicdigging.dto.AlbumDto;
-import com.example.musicdigging.dto.CreditDto;
-import com.example.musicdigging.dto.TrackDto;
+import com.example.musicdigging.dto.*;
 import com.example.musicdigging.external.music.MusicBrainzService;
 import com.example.musicdigging.service.MusicService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import com.example.musicdigging.dto.ArtistDto;
 
 
 import java.util.List;
@@ -59,5 +56,10 @@ public class MusicController {
     ) {
         return musicBrainzService
                 .getTrackCredits(recordingId);
+    }
+
+    @GetMapping("/api/music/credit-recommend")
+    public List<RecommendationDto> creditRecommend(@RequestParam String name) {
+        return musicBrainzService.getRecommendationsByCredit(name);
     }
 }

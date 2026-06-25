@@ -250,11 +250,56 @@ function renderCredits(credits) {
     credits.forEach(credit => {
         creditArea.innerHTML += `
             <div class="music-card credit-card"
-                 onclick="searchByArtistName('${credit.name}')">
+                 onclick="loadCreditRecommendations('${credit.name}')"
                 <p>${credit.role} : ${credit.name}</p>
             </div>
         `;
     });
+}
+
+async function loadCreditRecommendations(name) {
+
+    const response =
+        await fetch(`/api/music/credit-recommend?name=${encodeURIComponent(name)}`);
+
+    const recommendations =
+        await response.json();
+
+    renderCreditRecommendations(recommendations);
+}
+
+function renderCreditRecommendations(recommendations) {
+
+    const creditArea =
+        document.getElementById("creditArea");
+
+    if (recommendations.length === 0) {
+        creditArea.innerHTML += `
+            <h3>추천곡</h3>
+            <p>추천 결과가 없습니다.</p>
+        `;
+        return;
+    }
+
+    let html = `
+        <h3>추천곡</h3>
+        <div class="recommendation-list">
+    `;
+
+    recommendations.forEach(recommendation => {
+        html += `
+            <div class="music-card recommendation-card"
+                 onclick="searchByArtistName('${recommendation.artist}')">
+                <h3>${recommendation.title}</h3>
+                <p>아티스트 : ${recommendation.artist}</p>
+                <p>이유 : ${recommendation.reason}</p>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+
+    creditArea.innerHTML += html;
 }
 
 function openAlbumModal() {
