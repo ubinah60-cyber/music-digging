@@ -13,7 +13,7 @@ pipeline {
             steps {
                 echo 'Gradle 빌드'
                 sh 'chmod +x gradlew'
-                sh './gradlew clean build -x test'
+                sh './gradlew clean build -x test --no-daemon'
             }
         }
 
