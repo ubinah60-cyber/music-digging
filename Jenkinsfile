@@ -1,6 +1,14 @@
 pipeline {
     agent any
 
+    environment {
+            MYSQL_ROOT_PASSWORD = credentials('MYSQL_ROOT_PASSWORD')
+            MYSQL_DATABASE      = credentials('MYSQL_DATABASE')
+            MYSQL_USER          = credentials('MYSQL_USER')
+            MYSQL_PASSWORD      = credentials('MYSQL_PASSWORD')
+            LASTFM_API_KEY      = credentials('LASTFM_API_KEY')
+        }
+
     stages {
         stage('Checkout') {
             steps {
@@ -21,8 +29,8 @@ pipeline {
             steps {
                 echo 'Docker Compose 재배포'
                 sh '''
-                docker compose down
-                docker compose up -d --build
+                    docker compose -p music-digging down
+                    docker compose -p music-digging up -d --build
                 '''
             }
         }
