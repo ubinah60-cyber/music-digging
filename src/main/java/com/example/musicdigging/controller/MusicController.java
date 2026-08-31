@@ -28,6 +28,7 @@ public class MusicController {
     public List<Music> search(@RequestParam String keyword) {
         return musicService.search(keyword);
     }
+    /*테스트*/
 
     @GetMapping("/api/music/artist")
     public List<ArtistDto> artist(@RequestParam String name) {
