@@ -2,29 +2,49 @@ services:
   mysql:
     image: mysql:8.0
     container_name: music-digging-mysql
+    restart: unless-stopped
+
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       MYSQL_DATABASE: ${MYSQL_DATABASE}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
     ports:
       - "3307:3306"
+
     volumes:
       - mysql-data:/var/lib/mysql
       - ./db:/docker-entrypoint-initdb.d
 
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
     image: music-digging
     container_name: music-digging-app
+    restart: unless-stopped
+
     ports:
       - "8080:8080"
+
     environment:
       LASTFM_API_KEY: ${LASTFM_API_KEY}
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
       SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
 
 volumes:
   mysql-data:
