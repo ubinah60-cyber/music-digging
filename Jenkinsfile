@@ -2,12 +2,12 @@ pipeline {
     agent any
 
     environment {
-            MYSQL_ROOT_PASSWORD = credentials('MYSQL_ROOT_PASSWORD')
-            MYSQL_DATABASE      = credentials('MYSQL_DATABASE')
-            MYSQL_USER          = credentials('MYSQL_USER')
-            MYSQL_PASSWORD      = credentials('MYSQL_PASSWORD')
-            LASTFM_API_KEY      = credentials('LASTFM_API_KEY')
-        }
+        MYSQL_ROOT_PASSWORD = credentials('MYSQL_ROOT_PASSWORD')
+        MYSQL_DATABASE      = credentials('MYSQL_DATABASE')
+        MYSQL_USER          = credentials('MYSQL_USER')
+        MYSQL_PASSWORD      = credentials('MYSQL_PASSWORD')
+        LASTFM_API_KEY      = credentials('LASTFM_API_KEY')
+    }
 
     stages {
         stage('Checkout') {
@@ -31,6 +31,29 @@ pipeline {
                 sh '''
                     docker compose -p music-digging down
                     docker compose -p music-digging up -d --build
+                '''
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                echo 'Spring Boot Application Health Check'
+
+                sh '''
+                    for i in $(seq 1 12); do
+                        echo "Health Check 시도: $i/12"
+
+                        if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                            echo "Application Health Check 성공"
+                            exit 0
+                        fi
+
+                        echo "Application 기동 대기 중..."
+                        sleep 5
+                    done
+
+                    echo "Application Health Check 실패"
+                    exit 1
                 '''
             }
         }
