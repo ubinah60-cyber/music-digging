@@ -17,6 +17,19 @@ pipeline {
             }
         }
 
+        stage('Set Image Version') {
+            steps {
+                script {
+                    env.IMAGE_TAG = sh(
+                        script: 'git rev-parse --short HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Docker Image Version: ${env.IMAGE_TAG}"
+                }
+            }
+        }
+
         stage('Build') {
             steps {
                 echo 'Gradle 빌드'
@@ -27,10 +40,9 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                echo 'Docker Compose 재배포'
+                echo "Docker Compose 재배포 - Image Tag: ${env.IMAGE_TAG}"
                 sh '''
-                    docker compose -p music-digging down
-                    docker compose -p music-digging up -d --build
+                    IMAGE_TAG=$IMAGE_TAG docker compose -p music-digging up -d --build
                 '''
             }
         }

@@ -29,7 +29,7 @@ services:
       context: .
       dockerfile: Dockerfile
 
-    image: music-digging
+    image: music-digging:${IMAGE_TAG}
     container_name: music-digging-app
     restart: unless-stopped
 
