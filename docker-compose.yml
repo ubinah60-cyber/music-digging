@@ -24,17 +24,40 @@ services:
       retries: 10
       start_period: 30s
 
-  app:
+  app-blue:
     build:
       context: .
       dockerfile: Dockerfile
 
     image: music-digging:${IMAGE_TAG}
-    container_name: music-digging-app
+    container_name: music-digging-app-blue
     restart: unless-stopped
 
     ports:
       - "8080:8080"
+
+    environment:
+      LASTFM_API_KEY: ${LASTFM_API_KEY}
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+
+  app-green:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    image: music-digging:${IMAGE_TAG}
+    container_name: music-digging-app-green
+    restart: unless-stopped
+
+    ports:
+      - "8082:8080"
 
     environment:
       LASTFM_API_KEY: ${LASTFM_API_KEY}
