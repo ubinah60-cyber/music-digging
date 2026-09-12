@@ -70,7 +70,7 @@ pipeline {
                             for i in $(seq 1 12); do
                                 echo "Health Check 시도: $i/12"
 
-                                if curl -fsS http://localhost:8080/actuator/health | grep -q '"status":"UP"'; then
+                                if curl -fsS http://localhost:8080/actuator/health-test | grep -q '"status":"UP"'; then
                                     echo "Application Health Check 성공"
                                     exit 0
                                 fi
