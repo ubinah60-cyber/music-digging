@@ -667,5 +667,172 @@ Nginx              : 80
 
 이를 통해 Git Push부터 Build, Docker Image Version 관리, 신규 Application 배포, Health Check, Traffic 전환 및 실패 시 Rollback까지 자동화된 CI/CD 환경을 구축했습니다.
 
-다음 단계에서는 Kubernetes를 도입하여 Application Replica, Service, ConfigMap / Secret, Liveness / Readiness Probe 및 Rolling Update 기반의 Container Orchestration 환경을 구축할 예정입니다.
+
+# Kubernetes 로컬 환경 구축
+
+Docker Compose 기반 배포 환경에서 Kubernetes 구조를 학습하고, 로컬 Kind Cluster에 Spring Boot Application과 MySQL을 배포할 수 있도록 Kubernetes Manifest를 구성했습니다.
+
+```text
+Kind Cluster
+   |
+   +--> Spring Boot Deployment
+   |       |
+   |       +--> Application Pod
+   |       +--> Replica 관리
+   |       +--> Liveness Probe
+   |       +--> Readiness Probe
+   |
+   +--> Spring Boot Service
+   |       |
+   |       +--> Application Pod 접근
+   |
+   +--> MySQL StatefulSet
+   |       |
+   |       +--> MySQL Pod
+   |
+   +--> MySQL Service
+   |       |
+   |       +--> mysql Hostname으로 DB 연결
+   |
+   +--> ConfigMap
+   |       |
+   |       +--> Application 환경설정
+   |
+   +--> Secret
+           |
+           +--> DB 계정 / 비밀번호 등 민감정보
+```
+
+## Kubernetes Manifest 구성
+
+현재 `k8s` 디렉터리에 다음 Manifest를 구성했습니다.
+
+```text
+k8s/
+├── app-configmap.yaml
+├── app-deployment.yaml
+├── app-service.yaml
+├── mysql-service.yaml
+└── mysql-statefulset.yaml
+```
+
+## Spring Boot Deployment
+
+Spring Boot Application은 `Deployment`로 구성하여 Pod의 Replica와 배포 상태를 Kubernetes가 관리하도록 했습니다.
+
+```text
+Deployment
+   |
+   +--> ReplicaSet
+           |
+           +--> Application Pod
+           +--> Application Pod
+```
+
+Application과 같이 Replica 확장 및 Rolling Update가 필요한 Stateless Workload는 `Deployment`를 사용하도록 구성했습니다.
+
+## MySQL StatefulSet
+
+MySQL은 상태를 가지는 Database Workload이므로 `StatefulSet`으로 구성했습니다.
+
+```text
+StatefulSet
+   |
+   +--> mysql-0
+```
+
+Application과 달리 Pod의 고정된 식별자와 안정적인 상태 관리가 필요한 Database는 `StatefulSet`을 사용하도록 구성했습니다.
+
+## Kubernetes Service Networking
+
+Spring Boot와 MySQL Pod를 직접 IP로 연결하지 않고 Kubernetes Service를 통해 통신하도록 구성했습니다.
+
+```text
+Spring Boot Pod
+      |
+      | JDBC
+      v
+ MySQL Service
+      |
+      v
+   MySQL Pod
+```
+
+Pod가 재생성되어 IP가 변경되더라도 Service 이름을 이용해 안정적으로 접근할 수 있도록 구성했습니다.
+
+## ConfigMap
+
+Application의 일반 환경설정은 `ConfigMap`으로 분리했습니다.
+
+```text
+ConfigMap
+   |
+   +--> Spring Boot Deployment
+           |
+           +--> Environment Variable
+```
+
+Application Image 내부에 환경별 설정을 직접 포함하지 않고 Kubernetes Manifest를 통해 주입할 수 있도록 구성했습니다.
+
+## Secret
+
+DB 계정 및 비밀번호와 같은 민감정보는 Kubernetes `Secret`으로 분리하여 Application Pod에 주입하도록 구성했습니다.
+
+```text
+Secret
+   |
+   +--> DB Username
+   +--> DB Password
+           |
+           v
+   Spring Boot Pod
+```
+
+## Liveness / Readiness Probe
+
+Spring Boot Actuator의 Health Endpoint를 이용하여 Application Pod의 상태를 Kubernetes가 확인할 수 있도록 Probe를 구성했습니다.
+
+```text
+/actuator/health
+      |
+      +--> Liveness Probe
+      |       |
+      |       +--> Application 생존 여부 확인
+      |
+      +--> Readiness Probe
+              |
+              +--> Traffic 수신 가능 여부 확인
+```
+
+`Liveness Probe`를 통해 Application 비정상 상태를 감지하고, `Readiness Probe`를 통해 정상적으로 준비된 Pod에만 Service Traffic이 전달되도록 구성했습니다.
+
+## Kubernetes 구성 결과
+
+기존 Docker Compose 환경에서는 Container 실행 순서 및 상태를 직접 관리했지만, Kubernetes에서는 Deployment, StatefulSet, Service, ConfigMap, Secret 및 Probe를 이용하여 Container 실행과 상태 관리를 Orchestration 구조로 확장했습니다.
+
+```text
+Docker Compose
+   |
+   +--> Container 단위 관리
+
+            ↓
+
+Kubernetes
+   |
+   +--> Deployment / StatefulSet
+   +--> Pod
+   +--> Service
+   +--> ConfigMap / Secret
+   +--> Liveness / Readiness Probe
+```
+
+다음 단계에서는 `Rolling Update`와 `Rollback`을 직접 검증한 뒤 Jenkins Pipeline과 Kubernetes를 연동하여 Git Push 이후 Kubernetes까지 자동 배포되는 구조로 확장할 예정입니다.
+
+---
+
+
+추가로 로컬 Kind Cluster를 구축하고 Spring Boot Deployment / Service, MySQL StatefulSet / Service, ConfigMap / Secret, Liveness / Readiness Probe를 구성하여 Kubernetes 기반 Container Orchestration 환경까지 확장했습니다.
+
+현재 다음 단계는 Kubernetes Rolling Update 및 Rollback 검증이며, 이후 Jenkins Pipeline과 Kubernetes를 연동하여 Git Push 이후 Kubernetes Deployment까지 자동화할 예정입니다.
+
 

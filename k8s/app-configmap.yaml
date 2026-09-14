@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: music-digging-config
+  namespace: music-digging
+
+data:
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/music_digging?serverTimezone=Asia/Seoul&characterEncoding=UTF-8&allowPublicKeyRetrieval=true&useSSL=false"
