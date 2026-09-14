@@ -547,17 +547,17 @@ GET /api/music/albums?artistName=NewJeans
 
 ## Phase 7. Kubernetes
 
-* [ ] Kubernetes 기본 구조 학습
-* [ ] 로컬 Kubernetes 환경 구축 (Minikube 또는 Kind)
-* [ ] Spring Boot Deployment 작성
-* [ ] Spring Boot Service 구성
-* [ ] Application Replica 구성
-* [ ] MySQL Deployment / StatefulSet 구성
-* [ ] Service를 이용한 Container Networking
-* [ ] ConfigMap을 이용한 환경설정 관리
-* [ ] Secret을 이용한 민감정보 관리
-* [ ] Liveness Probe 구성
-* [ ] Readiness Probe 구성
+* [x] Kubernetes 기본 구조 학습
+* [x] 로컬 Kubernetes 환경 구축 (Kind)
+* [x] Spring Boot Deployment 작성
+* [x] Spring Boot Service 구성
+* [x] Application Replica 구성
+* [x] MySQL StatefulSet 구성
+* [x] Service를 이용한 Container Networking
+* [x] ConfigMap을 이용한 환경설정 관리
+* [x] Secret을 이용한 민감정보 관리
+* [x] Liveness Probe 구성
+* [x] Readiness Probe 구성
 * [ ] Rolling Update 적용
 * [ ] Kubernetes Rollback 검증
 * [ ] Jenkins → Kubernetes 자동 배포
