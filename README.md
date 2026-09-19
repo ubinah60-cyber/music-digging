@@ -558,8 +558,8 @@ GET /api/music/albums?artistName=NewJeans
 * [x] Secret을 이용한 민감정보 관리
 * [x] Liveness Probe 구성
 * [x] Readiness Probe 구성
-* [ ] Rolling Update 적용
-* [ ] Kubernetes Rollback 검증
+* [x] Rolling Update 적용
+* [x] Kubernetes Rollback 검증
 * [ ] Jenkins → Kubernetes 자동 배포
 
 ## Phase 8. Terraform / IaC
