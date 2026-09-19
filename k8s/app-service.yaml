@@ -6,13 +6,13 @@ metadata:
   namespace: music-digging
 
 spec:
-  type: ClusterIP
+  type: NodePort
 
   selector:
     app: music-digging-app
 
   ports:
-    - name: http
-      protocol: TCP
+    - protocol: TCP
       port: 8080
       targetPort: 8080
+      nodePort: 30080
