@@ -18,6 +18,8 @@
 * AWS EC2 (Ubuntu 24.04)
 * Jenkins
 * Docker / Docker Compose
+* Kubernetes / K3s / Kind
+* containerd
 * Nginx
 * GitHub Webhook
 * Gradle
@@ -28,10 +30,233 @@
 * MySQL 8.x
 * AWS EC2
 * Docker
+* K3s
 
 ---
 
-# CI/CD Pipeline
+# Current Production Architecture
+
+현재 운영 환경은 AWS EC2에 설치한 K3s를 중심으로 구성되어 있습니다. 기존 Docker Compose 및 Blue-Green 배포 환경에서 검증한 이미지 버전 관리, Health Check, 자동 Rollback 경험을 Kubernetes 기반 Rolling Update 구조로 확장했습니다.
+
+```text
+User
+  |
+  | HTTP :80
+  v
+Nginx
+  |
+  | proxy_pass http://127.0.0.1:30080
+  v
+K3s NodePort Service :30080
+  |
+  +--> Spring Boot Pod 1
+  |
+  +--> Spring Boot Pod 2
+            |
+            | JDBC
+            v
+      MySQL Headless Service
+            |
+            v
+      MySQL StatefulSet
+            |
+            v
+      PersistentVolumeClaim
+```
+
+## 현재 운영 구성
+
+| 구분 | 구성 |
+| --- | --- |
+| Cloud | AWS EC2 `t3.medium` |
+| OS | Ubuntu 24.04 |
+| Kubernetes | K3s |
+| Container Runtime | containerd |
+| Image Build | Docker |
+| CI/CD | Jenkins + GitHub Webhook |
+| Reverse Proxy | Nginx `:80` |
+| Application Service | NodePort `:30080` |
+| Application | Spring Boot Pod 2개 |
+| Database | MySQL 8.0 StatefulSet |
+| Storage | K3s `local-path` PVC |
+
+외부에는 Nginx의 HTTP 80 포트만 공개하고, Kubernetes NodePort와 MySQL은 외부에 직접 공개하지 않습니다.
+
+## 현재 CI/CD Pipeline
+
+GitHub `main` 브랜치에 Push가 발생하면 Webhook을 통해 Jenkins Pipeline이 자동 실행됩니다.
+
+```text
+git push
+   |
+   v
+GitHub Webhook
+   |
+   v
+Jenkins
+   |
+   +--> Source Checkout
+   |
+   +--> Gradle Build
+   |
+   +--> Git Commit SHA 확인
+   |
+   +--> Docker Image Build
+   |       |
+   |       +--> music-digging:{commit-sha}
+   |
+   +--> K3s containerd Image Import
+   |
+   +--> Deployment Image Update
+   |
+   +--> Rolling Update
+   |
+   +--> Nginx 경유 Health Check
+           |
+           +--> 성공: Pipeline SUCCESS
+           |
+           +--> 실패: 이전 Image 자동 Rollback
+```
+
+### Pipeline 단계
+
+1. GitHub Repository의 최신 소스를 Checkout합니다.
+2. Gradle로 Spring Boot 실행 JAR을 생성합니다.
+3. Git Commit SHA를 Docker Image Tag로 사용합니다.
+4. Docker Image를 생성합니다.
+5. 배포 스크립트가 Image를 K3s containerd로 Import합니다.
+6. Kubernetes Deployment의 Image를 변경합니다.
+7. Pod 2개를 Rolling Update 방식으로 교체합니다.
+8. Nginx를 경유해 Actuator Health Endpoint를 검증합니다.
+9. 최종 검증 실패 시 배포 전 Image로 자동 Rollback합니다.
+
+배포 이미지 예시:
+
+```text
+music-digging:cbddb5d
+```
+
+`latest` 대신 Git Commit SHA를 사용하여 실행 중인 소스 버전을 식별하고 이전 버전으로 되돌릴 수 있도록 구성했습니다.
+
+### 배포 안정성
+
+Application Deployment에는 Liveness Probe와 Readiness Probe를 적용했습니다.
+
+```text
+Liveness  : /actuator/health/liveness
+Readiness : /actuator/health/readiness
+```
+
+* Liveness Probe로 비정상 Application Container를 감지하고 재시작합니다.
+* Readiness Probe가 성공한 Pod만 Service Traffic을 전달받습니다.
+* Replica를 2개로 구성하여 Rolling Update 중 기존 정상 Pod가 요청을 처리합니다.
+* Nginx Health Check는 5초 간격으로 최대 12회 재시도합니다.
+* Health Check가 최종 실패하면 배포 전 Image로 자동 Rollback합니다.
+
+### Jenkins 배포 권한 분리
+
+Jenkins가 K3s 전체 관리자 명령을 직접 실행하지 않도록 Root 소유의 전용 배포 스크립트를 구성했습니다.
+
+```text
+/usr/local/bin/deploy-music-digging-k3s.sh
+```
+
+Jenkins에는 해당 스크립트만 비밀번호 없이 실행할 수 있는 제한된 sudo 권한을 부여했습니다. 배포 스크립트는 Git Commit SHA 형식의 Image Tag만 입력받으며 다음 작업을 수행합니다.
+
+* Docker Image 존재 여부 확인
+* 임시 Image Tar 생성
+* K3s containerd Image Import
+* 현재 운영 Image 기록
+* Deployment Rolling Update
+* Nginx Health Check
+* 실패 시 이전 Image Rollback
+* 임시 파일 삭제
+
+## Kubernetes Manifest
+
+`k8s` 디렉터리의 Manifest를 로컬 Kind와 운영 K3s 환경에서 함께 사용합니다.
+
+```text
+k8s/
+├── app-configmap.yaml
+├── app-deployment.yaml
+├── app-service.yaml
+├── mysql-service.yaml
+└── mysql-statefulset.yaml
+```
+
+| Manifest | 역할 |
+| --- | --- |
+| `app-configmap.yaml` | Spring Boot 일반 환경설정 관리 |
+| `app-deployment.yaml` | Application Replica, Probe 및 Rolling Update 관리 |
+| `app-service.yaml` | Application NodePort Service 구성 |
+| `mysql-service.yaml` | MySQL Headless Service 구성 |
+| `mysql-statefulset.yaml` | MySQL Pod와 PVC 관리 |
+
+DB 계정, 비밀번호 및 외부 API Key가 포함된 Kubernetes Secret은 Git에 저장하지 않고 운영 서버에서 별도로 생성합니다.
+
+## Kubernetes 운영 명령어
+
+### Pod 상태 확인
+
+```bash
+sudo k3s kubectl get pods -n music-digging
+```
+
+### Pod별 Image와 Ready 상태 확인
+
+```bash
+sudo k3s kubectl get pods -n music-digging \
+  -o "custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image,READY:.status.containerStatuses[*].ready"
+```
+
+### Deployment 상세 상태 확인
+
+```bash
+sudo k3s kubectl describe deployment music-digging-app -n music-digging
+```
+
+### Rolling Update 상태 확인
+
+```bash
+sudo k3s kubectl rollout status \
+  deployment/music-digging-app \
+  -n music-digging
+```
+
+### 배포 이력 확인
+
+```bash
+sudo k3s kubectl rollout history \
+  deployment/music-digging-app \
+  -n music-digging
+```
+
+### 이전 Revision으로 수동 Rollback
+
+```bash
+sudo k3s kubectl rollout undo \
+  deployment/music-digging-app \
+  -n music-digging
+```
+
+### Nginx를 통한 Application Health Check
+
+```bash
+curl -fsS http://127.0.0.1/actuator/health
+```
+
+### Pod Resource 사용량 확인
+
+```bash
+sudo k3s kubectl top pods -n music-digging
+```
+
+---
+
+# Docker 기반 CI/CD Pipeline (Phase 1~6 구축 이력)
+
+아래 내용은 Kubernetes 전환 전에 구축하고 검증한 Docker Compose 및 Blue-Green 배포 환경입니다. 현재 운영 Traffic은 K3s로 전환했지만, CI/CD를 단계적으로 발전시킨 과정을 기록하기 위해 기존 구축 내용을 유지합니다.
 
 GitHub Webhook과 Jenkins를 연동하여 `git push` 발생 시 빌드부터 Docker 이미지 생성 및 컨테이너 배포까지 자동으로 수행하도록 CI/CD Pipeline을 구성했습니다.
 
@@ -126,7 +351,7 @@ FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
-COPY build/libs/*.jar app.jar
+COPY build/libs/*-SNAPSHOT.jar app.jar
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
 ```
@@ -335,7 +560,7 @@ Gradle Build
    v
 Docker Image Build
    |
-   | COPY build/libs/*.jar app.jar
+   | COPY build/libs/*-SNAPSHOT.jar app.jar
    v
 music-digging:latest
    |
@@ -560,7 +785,16 @@ GET /api/music/albums?artistName=NewJeans
 * [x] Readiness Probe 구성
 * [x] Rolling Update 적용
 * [x] Kubernetes Rollback 검증
-* [ ] Jenkins → Kubernetes 자동 배포
+* [x] AWS EC2 K3s Cluster 구축
+* [x] K3s `local-path` PVC 구성
+* [x] 기존 MySQL Data 마이그레이션
+* [x] Nginx Traffic을 K3s NodePort로 전환
+* [x] Jenkins → Kubernetes 자동 배포
+* [x] Docker Image를 K3s containerd로 자동 Import
+* [x] Git Commit SHA 기반 Kubernetes Image Version 관리
+* [x] Nginx Health Check 재시도 구성
+* [x] 배포 실패 시 이전 Image 자동 Rollback
+* [x] GitHub Webhook 기반 End-to-End 자동 배포 검증
 
 ## Phase 8. Terraform / IaC
 
@@ -588,9 +822,9 @@ GET /api/music/albums?artistName=NewJeans
 
 ---
 
-## Current Progress
+## Phase 6 구축 기록: Docker Blue-Green Pipeline
 
-현재 CI/CD 및 Blue-Green Deployment Pipeline:
+Kubernetes 전환 전에 구축한 CI/CD 및 Blue-Green Deployment Pipeline:
 
 ```text
 Developer
@@ -655,7 +889,7 @@ Application 배포는 Blue-Green 방식으로 구성했습니다. 현재 운영 
 
 Traffic 전환 이후에는 Nginx를 경유하여 Application 상태를 다시 검증하며, 최종 검증에 실패할 경우 기존 Active Slot으로 Traffic을 자동 복구하도록 구성했습니다.
 
-현재 Application Slot은 다음과 같이 구성되어 있습니다.
+당시 Docker Blue-Green Application Slot은 다음과 같이 구성했습니다.
 
 ```text
 Blue  Application : 8080
@@ -826,13 +1060,11 @@ Kubernetes
    +--> Liveness / Readiness Probe
 ```
 
-다음 단계에서는 `Rolling Update`와 `Rollback`을 직접 검증한 뒤 Jenkins Pipeline과 Kubernetes를 연동하여 Git Push 이후 Kubernetes까지 자동 배포되는 구조로 확장할 예정입니다.
+로컬 Kind 환경에서 `Rolling Update`, 의도적인 `ImagePullBackOff`, `Rollback`을 검증했습니다. 이후 동일한 Manifest를 AWS EC2 K3s 환경에 적용하고 Jenkins Pipeline과 연동했습니다.
 
 ---
 
 
-추가로 로컬 Kind Cluster를 구축하고 Spring Boot Deployment / Service, MySQL StatefulSet / Service, ConfigMap / Secret, Liveness / Readiness Probe를 구성하여 Kubernetes 기반 Container Orchestration 환경까지 확장했습니다.
+로컬 Kind Cluster에 Spring Boot Deployment / Service, MySQL StatefulSet / Service, ConfigMap / Secret, Liveness / Readiness Probe를 구성했습니다.
 
-현재 다음 단계는 Kubernetes Rolling Update 및 Rollback 검증이며, 이후 Jenkins Pipeline과 Kubernetes를 연동하여 Git Push 이후 Kubernetes Deployment까지 자동화할 예정입니다.
-
-
+운영 환경에서는 AWS EC2에 K3s를 설치하고 기존 Docker MySQL 데이터를 StatefulSet으로 마이그레이션했습니다. Nginx Traffic을 K3s NodePort로 전환했으며, Git Push부터 Jenkins Build, Docker Image 생성, K3s Rolling Update, Health Check 및 실패 시 Rollback까지 자동화했습니다.
