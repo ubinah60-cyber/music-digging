@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CreditConnectionFinder {
+    /*두 곡 사이에 같은 크레딧 연결점이 있는가?*/
 
     public List<TrackCredit> findConnections(
             DigTrack startTrack,

@@ -2,6 +2,8 @@ package com.example.musicdigging.digging.model;
 
 import java.util.List;
 
+/*곡 데이터*/
+
 public record DigTrack(
         String recordingId,
         String title,
