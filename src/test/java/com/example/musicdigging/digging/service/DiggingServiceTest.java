@@ -64,7 +64,7 @@ class DiggingServiceTest {
     }
 
     @Test
-    void distinguishesMissingCredits() {
+    void returnsNoCandidatesWhenAllCollectionMetadataIsMissing() {
         DigTrack noCredits = new DigTrack(
                 "track-001", "시작곡", List.of()
         );
@@ -74,9 +74,11 @@ class DiggingServiceTest {
 
         DiggingResult result = service.dig("track-001");
 
-        assertEquals(DiggingStatus.NO_CREDITS, result.status());
+        assertEquals(DiggingStatus.NO_CANDIDATES, result.status());
         assertTrue(result.candidates().isEmpty());
         verify(provider, never()).findTracksByCredit(any());
+        verify(provider, never()).findTracksByArtist(anyString(), anyInt());
+        verify(provider, never()).findTracksByGenreAndYearRange(anyString(), anyInt(), anyInt(), anyInt());
     }
 
     @Test
@@ -91,6 +93,44 @@ class DiggingServiceTest {
 
         assertEquals(DiggingStatus.NO_CANDIDATES, result.status());
         assertTrue(result.candidates().isEmpty());
+    }
+
+    @Test
+    void discoversGenreYearCandidateWithoutCreditsOrArtists() {
+        DigTrack genreStart = new DigTrack("start", "시작곡", List.of(), List.of(),
+                2020, List.of(" HIP HOP ", "hip hop"));
+        DigTrack candidate = new DigTrack("candidate", "후보곡", List.of(), List.of(),
+                2023, List.of("hip hop"));
+        when(provider.findTrackById("start")).thenReturn(Optional.of(genreStart));
+        when(provider.findTracksByGenreAndYearRange("hip hop", 2017, 2023, 30))
+                .thenReturn(List.of(genreStart, candidate));
+
+        DiggingResult result = service.dig("start");
+
+        assertEquals(DiggingStatus.SUCCESS, result.status());
+        assertEquals(List.of(new DigCandidate("candidate", "후보곡", List.of(),
+                List.of(CandidateReason.genreAndYear("hip hop", 2017, 2023)))), result.candidates());
+        verify(provider, never()).findTracksByCredit(any());
+        verify(provider, never()).findTracksByArtist(anyString(), anyInt());
+        verify(provider, times(1)).findTracksByGenreAndYearRange("hip hop", 2017, 2023, 30);
+    }
+
+    @Test
+    void missingYearOnlySkipsGenreRouteAndArtistLookupIsDeduplicated() {
+        DigTrack artistStart = new DigTrack("start", "시작곡", List.of(), List.of(
+                new TrackArtist("a", "가수"), new TrackArtist("a", "Artist")),
+                null, List.of("hip hop"));
+        DigTrack candidate = new DigTrack("candidate", "후보곡", List.of(),
+                List.of(new TrackArtist("a", "가수")), null, List.of());
+        when(provider.findTrackById("start")).thenReturn(Optional.of(artistStart));
+        when(provider.findTracksByArtist("a", 30)).thenReturn(List.of(candidate));
+
+        DiggingResult result = service.dig("start");
+
+        assertEquals(DiggingStatus.SUCCESS, result.status());
+        assertEquals(List.of(CandidateReason.artist("a")), result.candidates().get(0).reasons());
+        verify(provider, times(1)).findTracksByArtist("a", 30);
+        verify(provider, never()).findTracksByGenreAndYearRange(anyString(), anyInt(), anyInt(), anyInt());
     }
 
     @Test

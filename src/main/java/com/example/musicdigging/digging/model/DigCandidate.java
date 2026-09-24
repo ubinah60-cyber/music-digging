@@ -7,9 +7,16 @@ import java.util.List;
 public record DigCandidate(
         String recordingId,
         String title,
-        List<TrackCredit> connections
+        List<TrackCredit> connections,
+        List<CandidateReason> reasons
 ) {
     public DigCandidate {
         connections = List.copyOf(connections);
+        reasons = List.copyOf(reasons);
+    }
+
+    public DigCandidate(String recordingId, String title, List<TrackCredit> connections) {
+        this(recordingId, title, connections,
+                connections.stream().map(CandidateReason::credit).distinct().toList());
     }
 }
