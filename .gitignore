@@ -40,3 +40,8 @@ out/
 secret
 secret.txt
 .env
+
+# React frontend
+frontend/node_modules/
+frontend/dist/
+/ui/
