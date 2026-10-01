@@ -7,7 +7,14 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Locale;
+import java.util.function.LongSupplier;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -24,10 +31,22 @@ public class MusicBrainzApiClient {
 
     private final RestClient restClient;
     private long nextRequestAtNanos;
+    private static final long CACHE_TTL_NANOS = TimeUnit.MINUTES.toNanos(10);
+    private static final int CACHE_LIMIT = 256;
+    private final Map<String, CachedJson> cache = new LinkedHashMap<>(16, 0.75f, true);
+    private final LongSupplier nanoTime;
+
+    private record CachedJson(String json, long expiresAt) {}
 
     // HTTP 요청에 사용할 RestClient를 주입받는다.
+    @org.springframework.beans.factory.annotation.Autowired
     public MusicBrainzApiClient(RestClient restClient) {
+        this(restClient, System::nanoTime);
+    }
+
+    MusicBrainzApiClient(RestClient restClient, LongSupplier nanoTime) {
         this.restClient = restClient;
+        this.nanoTime = nanoTime;
     }
 
     // Recording ID로 상세 정보를 조회하며, 404면 빈 값을 반환한다.
@@ -98,6 +117,7 @@ public class MusicBrainzApiClient {
     }
 
     // 아티스트 Recording 목록에서 offset 위치부터 조회한다.
+
     public String browseRecordingsByArtistJson(
             String artistId,
             int limit,
@@ -116,6 +136,29 @@ public class MusicBrainzApiClient {
         return requestJson(url);
     }
 
+    public String searchArtistsJson(String query, int limit) {
+        return searchJson("artist", query == null ? null : query.trim().toLowerCase(Locale.ROOT), limit);
+    }
+
+    public String searchRecordingsJson(String query, int limit) {
+        return searchJson("recording", query, limit);
+    }
+
+    public String searchAlbumsJson(String query, int limit) {
+        return searchJson("release-group", query, limit);
+    }
+
+    private String searchJson(String entity, String query, int limit) {
+        validateLimit(limit);
+        if (query == null || query.isBlank()) {
+            throw new IllegalArgumentException("검색어는 필수입니다.");
+        }
+        String url = BASE_URL + "/" + entity
+                + "/?query=" + URLEncoder.encode(query, StandardCharsets.UTF_8)
+                + "&limit=" + limit + "&fmt=json";
+        return requestJson(url);
+    }
+
     // 단일 항목 조회에서 404를 '데이터 없음'으로 변환한다.
     private Optional<String> findJson(String url) {
         try {
@@ -127,11 +170,15 @@ public class MusicBrainzApiClient {
 
     // 요청 간격을 지키고 MusicBrainz의 잘못된 MBID 오류를 입력 오류로 분류한다.
     private synchronized String requestJson(String url) {
+        long now = nanoTime.getAsLong();
+        CachedJson cached = cache.get(url);
+        if (cached != null && now < cached.expiresAt()) return cached.json();
+        cache.entrySet().removeIf(entry -> now >= entry.getValue().expiresAt());
         waitForRequestSlot();
 
         try {
             String json = restClient.get()
-                    .uri(url)
+                    .uri(URI.create(url))
                     .header("User-Agent", USER_AGENT)
                     .retrieve()
                     .body(String.class);
@@ -142,6 +189,8 @@ public class MusicBrainzApiClient {
                 );
             }
 
+            cache.put(url, new CachedJson(json, nanoTime.getAsLong() + CACHE_TTL_NANOS));
+            if (cache.size() > CACHE_LIMIT) cache.remove(cache.keySet().iterator().next());
             return json;
         } catch (HttpClientErrorException.NotFound exception) {
             throw exception;

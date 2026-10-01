@@ -2,16 +2,57 @@
 
 음악 검색 및 추천 서비스 프로젝트
 
+## MusicBrainz 검색 자동완성
+
+홈 화면 `/`은 `GET /api/music/autocomplete?query=...`를 사용합니다. 검색과 디깅 연결은 MusicBrainz만 사용하며 개발자 토큰이 필요하지 않습니다. 기존 `/api/music/search`는 MySQL 검색 API입니다.
+
+아티스트 이름·별칭을 검색하고, 이름이 잘 일치하는 아티스트의 MBID로 녹음을 추가 조회합니다. 한글 별칭도 같은 MBID를 사용하며, 네이티브 검색에서 일치하는 아티스트를 찾지 못하면 일반적인 한글 로마자 변환으로 다시 검색합니다. MusicBrainz에 별칭이 없거나 로마자 표기가 다르면 해당 아티스트를 찾지 못할 수 있습니다. 특정 아티스트와 곡 목록은 내장하지 않습니다.
+
+곡 후보는 artist-credit의 MBID와 joinphrase로 참여 형태를 구분합니다. 검색한 아티스트가 유일한 주 아티스트인 곡(다른 아티스트의 feat./ft./featuring 참여 포함), 공동 주 아티스트 곡, 검색한 아티스트가 피처링으로 참여한 곡 순서로 정렬합니다. `&`·`and`·쉼표 등으로 연결된 주 아티스트와 피처링 구간을 구분하고, 작곡가·프로듀서 관계만 있는 곡은 제외합니다. 각 참여 순위 안에서 공식 발매 근거, 일반 스튜디오 녹음 여부, 조회된 공식 발매 수, 반환된 전체 발매 수, MBID 순으로 정렬합니다. clean·explicit·album version은 일반 스튜디오 녹음으로 취급하며, MusicBrainz 녹음 검색 score는 정렬에 사용하지 않습니다. 같은 녹음의 중복 MBID를 제목·버전 설명·크레딧·길이로 정리하고, 서로 다른 곡을 먼저 보여 준 뒤 같은 곡의 다른 버전을 최대 2개까지 표시합니다. 앨범은 release-group MBID로 묶어 동일 앨범에서 최대 2곡을 먼저 배치하고, 해당 참여 순위의 다른 앨범 후보를 검토한 뒤 빈 자리가 있을 때만 추가합니다. 다른 국가·에디션 발매도 같은 앨범으로 취급합니다. 곡은 최대 8개이며 관련 후보가 적으면 더 적게 반환합니다. 곡 제목은 제목 일치, 앨범은 제목 일치와 MusicBrainz 발매 수를 우선합니다. 아티스트의 disambiguation은 표시하지 않으며 관련 없는 앨범은 숨깁니다. 이 순서는 인기곡 차트가 아니며 Apple Music의 인기곡 순서를 재현하지 않습니다.
+
+응답의 `source`는 `musicbrainz`, 곡의 `id`와 `recordingId`는 실제 MusicBrainz Recording MBID입니다. 곡 선택 후 디깅 시작은 기존 `GET /api/digging?recordingId=...`로 연결합니다.
+
+### 로컬 실행 및 검증
+
+JDK 17과 Node.js 20.19+ 또는 22.12+가 필요합니다. PowerShell에서:
+
+```powershell
+cd frontend
+npm.cmd ci
+npm.cmd run build
+cd ..
+./gradlew.bat test
+./gradlew.bat bootRun --args='--spring.profiles.active=local,musicbrainz'
+```
+
+`http://localhost:8080/`에서 검색·곡 선택·디깅 시작을 확인합니다. `local`은 디깅 서비스를 활성화하고 `musicbrainz`는 실제 MusicBrainz 데이터 제공자를 사용합니다. 기존 MySQL 기능을 사용하려면 `application.yml`의 DB 설정도 준비해야 합니다. 기존 Last.fm 기능의 `LASTFM_API_KEY`는 이 검색 경로에 사용하지 않습니다. React를 다시 빌드한 뒤 Spring Boot를 재시작하면 `/`에 반영됩니다. UI 개발 서버는 `frontend`에서 `npm run dev`로 실행하며 API를 8080으로 프록시합니다.
+
+### 요청 제한과 캐시
+
+모든 MusicBrainz 조회는 기존 클라이언트의 1,100ms 간격 제어를 공유합니다. 성공한 원본 응답은 프로세스 메모리에 최대 256개, 10분간 캐시하며 같은 URL의 동시 요청을 합칩니다. 실패 응답은 캐시하지 않습니다. 아티스트 녹음은 공식 발매 검색 첫 100개를 조회합니다. 단독 주 아티스트의 일반 공식 앨범 후보 100개에서 발매 수·최초 발매일·MBID 순으로 최대 3개 앨범을 고르고, 각 release-group MBID로 녹음을 최대 100개씩 보충합니다. 최대 400개 후보를 모두 정렬·중복 정리·앨범 분산한 뒤 마지막에 8개를 선택합니다. 관련 후보가 5개보다 적으면 한 번만 일반 녹음 검색 100개를 보충하여 총 후보 상한은 500개입니다. 전체 곡 목록이나 무한 페이지 조회는 하지 않습니다. 보충도 기존 MBID별 10분 캐시를 공유하며, MusicBrainz 발매 수는 데이터 수록 정도를 뜻하고 재생 인기 점수가 아닙니다. 이 제한된 표본 밖에 있는 곡은 정렬만으로 표시할 수 없습니다.
+
+React는 450ms debounce, 한글 IME 조합 중 조회 보류, 이전 fetch 취소와 응답 순서 검사를 적용합니다. 검색 결과는 브라우저 메모리에 최대 64개, 5분간 캐시합니다. 브라우저 fetch 취소는 이미 서버에서 실행된 외부 요청을 중단하지는 않습니다. 여러 서버 프로세스가 같은 외부 IP를 공유하는 운영 구성에서는 프로세스별 간격 제어만으로 IP 전체 제한을 보장할 수 없으므로 중앙 요청 제어가 필요합니다.
+
+### 비용 및 이용 조건 (2026-10-01 확인)
+
+- [MusicBrainz API](https://musicbrainz.org/doc/MusicBrainz_API)는 비상업적 사용이 무료이며 API 키가 필요 없습니다. 월별 무료 요청량 대신 [기본 초당 1회/IP 제한과 의미 있는 User-Agent](https://musicbrainz.org/doc/MusicBrainz_API/Rate_Limiting)를 지켜야 합니다.
+- 상업적 웹 서비스 사용은 별도 플랜 또는 MetaBrainz 협의가 필요합니다. [현재 플랜](https://metabrainz.org/supporters/account-type)은 개인·비상업 $0부터, 공개 제품의 Bronze 월 $100부터이며 제품 규모와 운영 형태에 따라 조건이 다릅니다. 로컬 개발 검증은 유료 플랜 가입 없이 진행하며 상업 운영 전 조건과 비용을 별도 확인해야 합니다.
+- [데이터 라이선스](https://musicbrainz.org/doc/About/Data_License)는 핵심 데이터 CC0, 부가 데이터 CC BY-NC-SA 3.0으로 구분됩니다. 핵심 데이터의 CC0와 공개 API의 상업 운영 조건은 별개입니다.
+- 이번 검색 개선에는 외부 서비스·유료 기능·유료 가입을 추가하지 않았습니다.
+
+
+---
+
 ## 기술 스택
 
 ### Application
 
 * Java 17
-* Spring Boot 3
+* Spring Boot 4
 * MyBatis
 * MySQL
 * Thymeleaf
-* JavaScript (fetch API)
+* React 19 / Vite 7 / JavaScript (fetch API)
 
 ### DevOps / Infrastructure
 
@@ -697,9 +738,11 @@ CREATE DATABASE music_digging;
 ```text
 GET /api/music/list
 GET /api/music/search?keyword=NewJeans
+GET /api/music/autocomplete?query=Kanye
 GET /api/music/artist?name=NewJeans
 GET /api/music/albums?artistName=NewJeans
 ```
+
 
 ---
 

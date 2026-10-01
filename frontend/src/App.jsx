@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 
 function Icon({ name, size = 28 }) {
   const common = {
@@ -97,48 +97,99 @@ const navItems = [
 ]
 
 const interactiveAreas = '.search-form, .brand, .account-button, .bottom-nav, .results'
+const canSearch = (query) => [...query].length >= 2 || /^[가-힣一-龥ぁ-んァ-ン]$/.test(query)
+
+function resultDescription(item) {
+  if (item.type !== 'recording') return item.description
+  // The API builds this prefix from artist-credit, then appends " · " and version metadata.
+  const artists = (item.description ?? '').split(' · ', 1)[0].replace(/\s+/g, ' ').trim()
+  return artists === '곡' ? '' : artists
+}
 
 export default function App() {
   const [isSearchOpen, setSearchOpen] = useState(false)
   const [keyword, setKeyword] = useState('')
-  const [search, setSearch] = useState({ status: 'idle', items: [], query: '' })
+  const [search, setSearch] = useState({ status: 'idle', groups: null, query: '' })
+  const [selected, setSelected] = useState(null)
   const [notice, setNotice] = useState('')
   const inputRef = useRef(null)
-  const pendingRequest = useRef(null)
+  const requestVersion = useRef(0)
+  const searchCache = useRef(new Map())
+  const [isComposing, setComposing] = useState(false)
   const pointerStartedInInteractiveArea = useRef(false)
 
-  async function submitSearch(event) {
-    event.preventDefault()
+  useEffect(() => {
+    const version = ++requestVersion.current
     const query = keyword.trim()
-    setSearchOpen(true)
-    if (!query) {
-      inputRef.current?.focus()
-      return
+    if (!isSearchOpen || isComposing || selected?.name === keyword || !canSearch(query)) {
+      if (!selected) setSearch({ status: 'idle', groups: null, query })
+      return undefined
     }
 
-    pendingRequest.current?.abort()
-    const request = new AbortController()
-    pendingRequest.current = request
-    setSearch({ status: 'loading', items: [], query })
-
-    try {
-      const response = await fetch(`/api/music/search?keyword=${encodeURIComponent(query)}`, { signal: request.signal })
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      const items = await response.json()
-      if (!Array.isArray(items)) throw new Error('Unexpected response')
-      setSearch({ status: 'success', items, query })
-    } catch (error) {
-      if (error.name !== 'AbortError') setSearch({ status: 'error', items: [], query })
+    const cacheKey = query.normalize('NFKC').toLocaleLowerCase().replace(/\s+/g, ' ')
+    const cached = searchCache.current.get(cacheKey)
+    if (cached && Date.now() < cached.expiresAt) {
+      setSearch({ status: 'success', groups: cached.groups, query })
+      return undefined
     }
-  }
+    const controller = new AbortController()
+    setSearch({ status: 'loading', groups: null, query })
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/music/autocomplete?query=${encodeURIComponent(query)}`, { signal: controller.signal })
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        const groups = await response.json()
+        if (!['artists', 'songs', 'albums'].every((group) => Array.isArray(groups[group]))) throw new Error('Unexpected response')
+        if (requestVersion.current === version && !controller.signal.aborted) {
+          searchCache.current.delete(cacheKey)
+          searchCache.current.set(cacheKey, { groups, expiresAt: Date.now() + 5 * 60 * 1000 })
+          if (searchCache.current.size > 64) searchCache.current.delete(searchCache.current.keys().next().value)
+          setSearch({ status: 'success', groups, query })
+        }
+      } catch (error) {
+        if (error.name !== 'AbortError' && requestVersion.current === version) {
+          setSearch({ status: 'error', groups: null, query })
+        }
+      }
+    }, 450)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+      requestVersion.current += 1
+    }
+  }, [keyword, isSearchOpen, selected, isComposing])
 
   function resetHome() {
-    pendingRequest.current?.abort()
     inputRef.current?.blur()
     setSearchOpen(false)
     setKeyword('')
-    setSearch({ status: 'idle', items: [], query: '' })
+    setSelected(null)
+    setSearch({ status: 'idle', groups: null, query: '' })
     setNotice('')
+  }
+
+  function selectResult(item) {
+    setSelected({ type: item.type, id: item.id, name: item.name, source: item.source,
+      recordingId: item.recordingId })
+    setKeyword(item.name)
+    inputRef.current?.blur()
+  }
+
+  async function startDigging() {
+    if (!selected?.recordingId) return
+    const recordingId = selected.recordingId
+    setSelected((current) => ({ ...current, diggingStatus: 'loading' }))
+    try {
+      const response = await fetch(`/api/digging?recordingId=${encodeURIComponent(recordingId)}`)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      const result = await response.json()
+      setSelected((current) => current?.recordingId === recordingId
+        ? { ...current, diggingStatus: result.status === 'SUCCESS' ? `디깅 후보 ${result.candidates?.length ?? 0}곡을 찾았습니다.` : '연결된 곡의 디깅 후보가 없습니다.' }
+        : current)
+    } catch {
+      setSelected((current) => current?.recordingId === recordingId
+        ? { ...current, diggingStatus: '디깅 API를 사용할 수 없습니다.' } : current)
+    }
   }
 
   function showComingSoon(name) {
@@ -165,41 +216,74 @@ export default function App() {
 
       <section className="hero" aria-labelledby="brand-title">
         <h1 id="brand-title" className="brand"><button type="button" onClick={resetHome}>DIGGER</button></h1>
-        <form className="search-form" role="search" onClick={(event) => { if (event.target === event.currentTarget) inputRef.current?.focus() }} onFocusCapture={() => setSearchOpen(true)} onSubmit={submitSearch}>
-          <button className="search-icon" type="submit" aria-label="검색"><Icon name="search" size={32} /></button>
+        <form className="search-form" role="search" onClick={(event) => { if (event.target === event.currentTarget) inputRef.current?.focus() }} onFocusCapture={() => setSearchOpen(true)} onSubmit={(event) => event.preventDefault()}>
+          <button className="search-icon" type="button" aria-label="검색어 입력" onClick={() => inputRef.current?.focus()}><Icon name="search" size={32} /></button>
           <input
             ref={inputRef}
             type="search"
             name="keyword"
             value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
+            onCompositionStart={() => setComposing(true)}
+            onCompositionEnd={() => setComposing(false)}
+            onChange={(event) => { setSelected(null); setKeyword(event.target.value) }}
             onKeyDown={(event) => { if (event.key === 'Escape') resetHome() }}
             placeholder={isSearchOpen ? '곡, 아티스트, 앨범을 검색해보세요' : '어떤 음악에서 디깅을 시작할까요?'}
             aria-label="음악 검색어"
           />
+          {keyword && <button className="search-clear" type="button" aria-label="검색어 지우기" onClick={() => { setSelected(null); setKeyword(''); inputRef.current?.focus() }}>×</button>}
         </form>
         <p className="tagline">한 곡에서 시작해, 연결을 따라 발견하세요</p>
       </section>
 
       {isSearchOpen && (
         <section className="search-stage" aria-live="polite">
-          {search.status === 'idle' ? (
+          {search.status === 'idle' && !keyword.trim() ? (
             <div className="search-empty">
               <div className="empty-icon"><Icon name="search" size={64} /></div>
               <h2>어떤 음악을 찾고 있나요?</h2>
               <p>검색어를 입력하면 결과가 여기에 표시돼요</p>
             </div>
           ) : (
-            <div className="results" aria-label="검색 결과">
-              <div className="results-heading"><h2>“{search.query}” 검색 결과</h2><button type="button" onClick={resetHome} aria-label="검색 결과 닫기">×</button></div>
-              {search.status === 'loading' && <p>음악을 찾고 있어요…</p>}
-              {search.status === 'error' && <p>검색 결과를 불러오지 못했습니다. 백엔드 연결을 확인해 주세요.</p>}
-              {search.status === 'success' && search.items.length === 0 && <p>검색 결과가 없습니다.</p>}
-              {search.status === 'success' && search.items.length > 0 && (
-                <ul className="result-list">
-                  {search.items.map((item) => <li key={item.id ?? `${item.title}-${item.artist}`}><strong>{item.title}</strong><span>{item.artist}{item.album ? ` · ${item.album}` : ''}</span></li>)}
-                </ul>
-              )}
+            <div className="results" aria-label="자동완성 결과">
+              {search.status === 'idle' && <p className="results-message">두 글자 이상 입력해 주세요. 한글은 한 글자부터 검색할 수 있어요.</p>}
+              {search.status === 'loading' && <p className="results-message" role="status">음악을 찾고 있어요…</p>}
+              {search.status === 'error' && <p className="results-message" role="alert">검색 결과를 불러오지 못했습니다. 잠시 후 다시 입력해 주세요.</p>}
+              {search.status === 'success' && ['artists', 'songs', 'albums'].every((group) => search.groups[group].length === 0) && <p className="results-message">검색 결과가 없습니다.</p>}
+              {search.status === 'success' && [
+                { key: 'artists', label: '아티스트', limit: 2, symbol: <Icon name="profile" size={30} /> },
+                { key: 'songs', label: '곡', limit: 8, symbol: '♫' },
+                { key: 'albums', label: '앨범', limit: 3, symbol: '▣' },
+              ].sort((a, b) => Number(b.key === `${search.groups.focus}s`) - Number(a.key === `${search.groups.focus}s`))
+                .map((group) => search.groups[group.key].length > 0 && (
+                <section className="result-section" key={group.key} aria-label={group.label}>
+                  <h2>{group.label}</h2>
+                  <ul className="result-list">
+                    {search.groups[group.key].slice(0, group.limit).map((item, index) => (
+                      <li key={item.id}>
+                        <button
+                          className={`result-item ${(selected?.source === item.source && selected?.id === item.id) || (!selected && group.key === `${search.groups.focus}s` && index === 0) ? 'highlighted' : ''}`}
+                          type="button"
+                          data-source={item.source}
+                          data-item-type={item.type}
+                          data-item-id={item.id}
+                          data-recording-id={item.recordingId ?? undefined}
+                          onClick={() => selectResult(item)}
+                        >
+                          <span className={`result-art result-art-${item.type}`} aria-hidden="true">{group.symbol}</span>
+                          <span className="result-copy"><strong>{item.name}</strong><small>{resultDescription(item)}</small></span>
+                          <span className="result-arrow" aria-hidden="true">›</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+              {selected && <div className="selection-status" role="status" data-selected-type={selected.type} data-selected-id={selected.id}>
+                <span>{selected.name} 선택됨 · MusicBrainz ID: {selected.id}</span>
+                {selected.recordingId && <span>Recording ID: {selected.recordingId}</span>}
+                {selected.recordingId && <button type="button" className="digging-start" onClick={startDigging} disabled={selected.diggingStatus === 'loading'}>디깅 시작</button>}
+                {selected.diggingStatus && <span>{selected.diggingStatus === 'loading' ? '디깅 중…' : selected.diggingStatus}</span>}
+              </div>}
             </div>
           )}
         </section>
