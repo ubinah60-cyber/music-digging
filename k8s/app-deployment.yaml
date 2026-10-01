@@ -28,12 +28,6 @@ spec:
                 name: music-digging-config
 
           env:
-            - name: LASTFM_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: music-digging-secret
-                  key: LASTFM_API_KEY
-
             - name: SPRING_DATASOURCE_USERNAME
               valueFrom:
                 secretKeyRef:

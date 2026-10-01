@@ -42,14 +42,6 @@ async function searchMusic() {
 
     renderArtistList(artistList);
 
-    const similarResponse =
-        await fetch(`/api/lastfm/similar-artists?artist=${keyword}`);
-
-    const similarArtists =
-        await similarResponse.json();
-
-    renderSimilarArtists(similarArtists);
-
     const albumResponse =
         await fetch(`/api/music/albums?artistName=${keyword}`);
 
@@ -104,31 +96,6 @@ function renderArtistList(artistList) {
                 <h3>${artist.name}</h3>
                 <p>국가 : ${artist.country}</p>
                 <p>유형 : ${artist.type}</p>
-            </div>
-        `;
-    });
-}
-
-function renderSimilarArtists(similarArtists) {
-
-    const similarArtistArea =
-        document.getElementById("similarArtistArea");
-
-    similarArtistArea.innerHTML = "";
-
-    if (similarArtists.length === 0) {
-        similarArtistArea.innerHTML =
-            "<p>비슷한 아티스트가 없습니다.</p>";
-        return;
-    }
-
-    similarArtists.slice(0, 10).forEach(artist => {
-
-        similarArtistArea.innerHTML += `
-            <div class="music-card similar-artist-card"
-                 onclick="searchByArtistName('${artist.name}')">
-                <h3>${artist.name}</h3>
-                <p>유사도 : ${artist.match}</p>
             </div>
         `;
     });

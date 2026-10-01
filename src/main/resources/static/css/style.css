@@ -61,14 +61,6 @@ body {
     cursor: pointer;
 }
 
-.similar-artist-card {
-    cursor: pointer;
-}
-
-.similar-artist-card:hover {
-    background-color: #f1f1f1;
-}
-
 .track-card {
     cursor: pointer;
 }

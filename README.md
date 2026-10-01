@@ -25,7 +25,13 @@ cd ..
 ./gradlew.bat bootRun --args='--spring.profiles.active=local,musicbrainz'
 ```
 
-`http://localhost:8080/`에서 검색·곡 선택·디깅 시작을 확인합니다. `local`은 디깅 서비스를 활성화하고 `musicbrainz`는 실제 MusicBrainz 데이터 제공자를 사용합니다. 기존 MySQL 기능을 사용하려면 `application.yml`의 DB 설정도 준비해야 합니다. 기존 Last.fm 기능의 `LASTFM_API_KEY`는 이 검색 경로에 사용하지 않습니다. React를 다시 빌드한 뒤 Spring Boot를 재시작하면 `/`에 반영됩니다. UI 개발 서버는 `frontend`에서 `npm run dev`로 실행하며 API를 8080으로 프록시합니다.
+`http://localhost:8080/`에서 검색·곡 선택·디깅 시작을 확인합니다. `local`은 디깅 서비스를 활성화하고 `musicbrainz`는 실제 MusicBrainz 데이터 제공자를 사용합니다. 애플리케이션과 전체 테스트를 실행하려면 `application.yml`의 설정에 맞는 MySQL을 준비해야 합니다. 외부 API 키 없이 실행할 수 있습니다. React를 다시 빌드한 뒤 Spring Boot를 재시작하면 `/`에 반영됩니다. UI 개발 서버는 `frontend`에서 `npm run dev`로 실행하며 API를 8080으로 프록시합니다.
+
+### 데이터 공급 구조 전환 상태
+
+운영 DB는 MySQL을 유지합니다. JPA 의존성을 추가했으며 `spring.jpa.open-in-view=false`, `spring.jpa.hibernate.ddl-auto=none`으로 설정해 자동 스키마 변경을 하지 않습니다. 기존 MyBatis 경로는 유지하며, JPA 기반 DB Provider와 카탈로그·ETL 구현은 다음 작업입니다. MusicBrainz API는 기존 PoC로 유지하고, DB 경로 검증 후 운영 데이터 공급 경로를 전환할 예정입니다.
+
+Last.fm 연동은 과거 PoC 구현이며 현재 코드와 운영 데이터 공급 계획에서 제외했습니다. 저장소의 Compose와 Kubernetes Deployment는 Last.fm 키를 요구하지 않습니다. 외부 서버의 `.env`, Jenkins 자격 증명·환경변수, Kubernetes Secret 또는 ConfigMap에 남아 있는 Last.fm 항목은 배포 환경에서 별도로 정리해야 합니다. Kubernetes Secret의 MySQL 항목은 유지합니다. 과거 Last.fm 연동 이력은 현재 실행 요구사항에 해당하지 않습니다.
 
 ### 요청 제한과 캐시
 
