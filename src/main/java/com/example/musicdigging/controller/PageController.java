@@ -8,6 +8,6 @@ public class PageController {
 
     @GetMapping("/")
     public String index() {
-        return "index";
+        return "forward:/digger/index.html";
     }
 }
